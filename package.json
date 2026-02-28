@@ -5,7 +5,8 @@
   "description": "OpenUI5 TypeScript Walkthrough: Step 5: Controllers",
   "private": true,
   "scripts": {
-    "start": "ui5 serve -o index.html"
+    "start": "ui5 serve -o index.html",
+    "build": "ui5 build --clean-dest --dest dist"
   },
   "devDependencies": {
     "@types/drawflow": "^0.0.12",
