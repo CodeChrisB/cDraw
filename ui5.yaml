@@ -17,6 +17,9 @@ builder:
       afterTask: replaceVersion
     - name: ui5-tooling-modules-task
       afterTask: ui5-tooling-transpile-task
+  resources:
+    excludes:
+      - "test/**"
 
 server:
   customMiddleware:
