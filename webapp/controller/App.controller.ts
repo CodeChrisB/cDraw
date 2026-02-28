@@ -7,7 +7,7 @@ export default class AppController extends Controller {
     private initialized: boolean = false;
     private selectedNodeId: string | null = null;
     private nextY: number = 50;
-
+    //testing workflow
     onInit(): void {
         const htmlControl = this.byId("drawflowHtml") as any;
 
