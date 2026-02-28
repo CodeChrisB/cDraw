@@ -6,7 +6,7 @@
   "private": true,
   "scripts": {
     "start": "ui5 serve -o index.html",
-    "build": "ui5 build --clean-dest --dest dist"
+    "build": "ui5 build --clean-dest --dest dist --all"
   },
   "devDependencies": {
     "@types/drawflow": "^0.0.12",
