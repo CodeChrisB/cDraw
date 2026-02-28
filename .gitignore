@@ -1,0 +1,30 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# UI5 / build
+dist/
+build/
+target/
+tmp/
+out/
+
+# UI5 tooling
+.ui5/
+.ui5_cache/
+.ui5temp/
+
+# IDE
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS
+.DS_Store
+Thumbs.db
