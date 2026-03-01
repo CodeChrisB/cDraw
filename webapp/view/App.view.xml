@@ -1,24 +1,16 @@
 <mvc:View controllerName="ui5.walkthrough.controller.App"
     xmlns="sap.m"
     xmlns:mvc="sap.ui.core.mvc"
-    xmlns:core="sap.ui.core">
-    
-    <Page title="Drawflow Editor" class="sapUiContentPadding">
+    xmlns:core="sap.ui.core"
+    height="100%">
 
-        <!-- Toolbar -->
-        <VBox class="sapUiSmallMargin">
-            <Toolbar>
-                <Button text="Add Node" press=".onAddNode" />
-                <Button text="Add Custom Node" press=".onAddCustomNode" />
-                <Button text="Delete Selected Node" press=".onDeleteNode" />
-                <Button text="Zoom In" press=".onZoomIn" />
-                <Button text="Zoom Out" press=".onZoomOut" />
-                <Button text="Export JSON" press=".onExport" />
-                <Button text="Import JSON" press=".onImport" />
-            </Toolbar>
-        </VBox>
 
-        <core:HTML id="drawflowHtml" preferDOM="true"/>
 
-    </Page>
+        <Page title="CDraw" enableScrolling="false" class="sapUiContentPadding">
+
+            <core:HTML
+                id="drawflowHtml"
+                preferDOM="true" />
+
+        </Page>
 </mvc:View>

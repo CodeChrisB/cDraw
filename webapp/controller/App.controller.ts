@@ -1,206 +1,377 @@
 import Controller from "sap/ui/core/mvc/Controller";
-import Drawflow from "drawflow";
+import { CDraw } from "./CDraw";
 
 export default class AppController extends Controller {
 
-    private editor: any;
-    private initialized: boolean = false;
+    private cdraw!: CDraw;
     private selectedNodeId: string | null = null;
-    private nextY: number = 50;
-    //testing workflow
-    onInit(): void {
-        const htmlControl = this.byId("drawflowHtml") as any;
+    private nextY = 50;
 
-        htmlControl.setContent(
-            "<div id='drawflowContainer' style='width:100%; height:650px; border:1px solid #ccc; position:relative;'></div>"
-        );
+    // =====================================================
+    // Lifecycle
+    // =====================================================
+
+    onInit(): void {
+
+        const htmlControl = this.byId("drawflowHtml") as any;
+        htmlControl?.setContent(this.getHTMLControl());
     }
 
     onAfterRendering(): void {
 
-        if (this.initialized) return;
-
-        const container = document.getElementById("drawflowContainer") as HTMLElement;
-        if (!container) return;
-
-        this.editor = new Drawflow(container);
-
-        // Stability fixes
-        this.editor.useuuid = true;
-        this.editor.reroute = false;
-        this.editor.editor_mode = "edit";
-
-        this.editor.curvature = 0;
-        this.editor.reroute_curvature_start_end = 0;
-        this.editor.reroute_curvature = 0;
-        this.editor.createCurvature = function(start_x:any, start_y:any, end_x:any, end_y:any) {
-
-            const mid_y = (start_y + end_y) / 2;
-
-            return `
-                M ${start_x} ${start_y}
-                L ${start_x} ${mid_y}
-                L ${end_x} ${mid_y}
-                L ${end_x} ${end_y}
-            `;
+        const container = document.getElementById("drawflowContainer");
+        if (!container) {
+            console.error("Drawflow container not found");
+            return;
         }
 
-
-        this.editor.start();
-
+        this.cdraw = new CDraw(container);
         this.registerEvents();
 
-        this.initialized = true;
+        setTimeout(() => {
+            this.initDrawUI();
+            this.initCoordinateTracker()
+            this.enableDropOnCanvas(container);
+        }, 300);
     }
 
-    // ===============================
-    // Node Template (Top + Bottom)
-    // ===============================
-    private createNodeHtml(): string {
-        return `
-            <div style="padding:15px; text-align:center;">
-                <b>Node</b><br/>
-                <input type="text" df-name placeholder="Edit..." style="width:100%;" />
-            </div>
-        `;
-    }
-    onAddCustomNode(): void {
-        if (!this.editor) return;
+    // =====================================================
+    // UI INIT
+    // =====================================================
 
-        const nodeHtml = this.createFiveBoxNode();
-
-        this.editor.addNode(
-            "fivebox",
-            1,
-            1,
-            200,
-            200,
-            "node-class",
-            {
-                white: (Math.floor(Math.random() * 9) + 1) * 10,
-                blue: (Math.floor(Math.random() * 9) + 1) * 10,
-                green: (Math.floor(Math.random() * 9) + 1) * 10,
-                yellow: (Math.floor(Math.random() * 9) + 1) * 10,
-                red: (Math.floor(Math.random() * 9) + 1) * 10
-            },
-            nodeHtml
-        );
+    private initDrawUI(): void {
+        this.initSidePanel();
     }
 
-private createFiveBoxNode(): string {
-    return `
-        <div class="fivebox-row">
-            <div class="box white">
-                <input type="number" df-white />
-            </div>
-            <div class="box blue">
-                <input type="number" df-blue />
-            </div>
-            <div class="box green">
-                <input type="number" df-green />
-            </div>
-            <div class="box yellow">
-                <input type="number" df-yellow />
-            </div>
-            <div class="box red">
-                <input type="number" df-red />
-            </div>
-        </div>
-    `;
-}
-    // ===============================
-    // Add Node
-    // ===============================
-    onAddNode(): void {
+    // =====================================================
+    // SIDE PANEL
+    // =====================================================
 
-        const posX = 400;
-        const posY = this.nextY;
+    private initSidePanel(): void {
 
-        const id = this.editor.addNode(
-            "node",
-            1,
-            1,
-            posX,
-            posY,
-            "node-class",
-            {},
-            this.createNodeHtml()
-        );
+        // Header
+        new sap.m.Title({
+            text: "Tools"
+        }).placeAt("panel-header");
 
-        this.nextY += 180; // waterfall spacing
+        new sap.m.Button({
+            icon: "sap-icon://decline",
+            type: "Transparent",
+            press: () => this.toggleLeftPanel()
+        }).placeAt("panel-header");
 
-        // auto connect to previous node
-        const nodes = Object.keys(this.editor.drawflow.drawflow.Home.data);
-        if (nodes.length > 1) {
-            const prev = nodes[nodes.length - 2];
-            this.editor.addConnection(prev, id, "output_1", "input_1");
-        }
+        // =====================================================
+        // DRAG ITEM – NORMAL NODE
+        // =====================================================
+
+        const normalDrag = new sap.m.Text({
+            text: "Basic Node"
+        }).addStyleClass("draggable-node");
+
+        normalDrag.placeAt("panel-body");
+
+        normalDrag.addEventDelegate({
+            onAfterRendering: () => {
+
+                const dom = normalDrag.getDomRef();
+                if (!dom) return;
+
+                dom.setAttribute("draggable", "true");
+
+                dom.addEventListener("dragstart", (e: DragEvent) => {
+                    e.dataTransfer?.setData("node-type", "basic");
+                });
+            }
+        });
+
+        // =====================================================
+        // DRAG ITEM – CUSTOM NODE
+        // =====================================================
+
+        const customDrag = new sap.m.Text({
+            text: "Custom Node"
+        }).addStyleClass("draggable-node custom-node");
+
+        customDrag.placeAt("panel-body");
+
+        customDrag.addEventDelegate({
+            onAfterRendering: () => {
+
+                const dom = customDrag.getDomRef();
+                if (!dom) return;
+
+                dom.setAttribute("draggable", "true");
+
+                dom.addEventListener("dragstart", (e: DragEvent) => {
+                    e.dataTransfer?.setData("node-type", "custom");
+                });
+            }
+        });
+
+        // =====================================================
+        // ACTION BUTTONS
+        // =====================================================
+
+        new sap.m.Button({
+            text: "Delete Selected",
+            width: "100%",
+            press: () => this.onDeleteNode()
+        }).placeAt("panel-body");
+
+        new sap.m.Button({
+            text: "Export",
+            width: "100%",
+            press: () => this.onExport()
+        }).placeAt("panel-body");
+
+        new sap.m.Button({
+            text: "Import",
+            width: "100%",
+            press: (e) => this.onImport(e)
+        }).placeAt("panel-footer");
+
+        // =====================================================
+        // PANEL TOGGLE
+        // =====================================================
+
+        const handle = document.getElementById("panel-handle");
+        const arrow = document.getElementById("panel-handle-arrow");
+
+        handle?.addEventListener("click", () => this.toggleLeftPanel());
+        arrow?.addEventListener("click", () => this.toggleLeftPanel());
+
+
+        const coordBox = new sap.m.VBox({
+            items: [
+                new sap.m.HBox({
+                    alignItems: "Center",
+                    items: [
+                        new sap.m.Text({ text: "CX: 0 | CY: 0" })
+                    ]
+                })
+            ]
+        })
+        .addStyleClass("coord-capsule");
+
+        coordBox.placeAt("anchor-bottom-left");
+
+
     }
 
-    // ===============================
-    // Delete Node
-    // ===============================
+    private initCoordinateTracker(): void {
+
+        const container = document.getElementById("drawflowContainer");
+        if (!container) return;
+
+        container.addEventListener("mousemove", (e: MouseEvent) => {
+
+            const rect = container.getBoundingClientRect();
+
+            const x = Math.round(e.clientX - rect.left);
+            const y = Math.round(e.clientY - rect.top);
+
+            const mouseText = document.querySelector(
+                ".coord-capsule .sapMText"
+            ) as HTMLElement;
+
+            if (mouseText) {
+                mouseText.innerText = `X: ${x} | Y: ${y}`;
+            }
+
+            // Camera coordinates (if using zoom/pan later)
+            const cameraText = document.querySelectorAll(
+                ".coord-capsule .sapMText"
+            )[1] as HTMLElement;
+
+            if (cameraText) {
+                cameraText.innerText = `CX: ${x} | CY: ${y}`;
+            }
+        });
+    }
+
+    // =====================================================
+    // DROP INTO CANVAS
+    // =====================================================
+
+    private enableDropOnCanvas(container: HTMLElement): void {
+
+        container.addEventListener("dragover", (e) => {
+            e.preventDefault();
+        });
+
+        container.addEventListener("drop", (e: DragEvent) => {
+
+            e.preventDefault();
+
+            const type = e.dataTransfer?.getData("node-type");
+            if (!type) return;
+
+            const rect = container.getBoundingClientRect();
+
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            const pos = this.cdraw.getMousePosition(e)
+            if (type === "custom") {
+                this.cdraw.addNode(
+                    "fivebox",
+                    pos.x,
+                    pos.y,
+                    this.createFiveBoxNode(),
+                    {
+                        white: this.randomValue(),
+                        blue: this.randomValue(),
+                        green: this.randomValue(),
+                        yellow: this.randomValue(),
+                        red: this.randomValue()
+                    }
+                );
+
+            } else {
+                this.cdraw.addNode(
+                    "node",
+                    pos.x,
+                    pos.y,
+                    this.createNodeHtml(),
+                    {}
+                );
+            }
+        });
+    }
+
+    // =====================================================
+    // PANEL TOGGLE
+    // =====================================================
+
+    private toggleLeftPanel(): void {
+
+        const panel = document.getElementById("left-panel");
+        const arrow = document.getElementById("panel-handle-arrow");
+
+        if (!panel || !arrow) return;
+
+        panel.classList.toggle("open");
+        arrow.classList.toggle("rotated");
+    }
+
+    // =====================================================
+    // NODE ACTIONS
+    // =====================================================
+
     onDeleteNode(): void {
-        if (this.selectedNodeId) {
-            this.editor.removeNodeId(this.selectedNodeId);
-            this.selectedNodeId = null;
-        }
+
+        if (!this.cdraw || !this.selectedNodeId) return;
+
+        this.cdraw.removeNode(this.selectedNodeId);
+        this.selectedNodeId = null;
     }
 
-    // ===============================
-    // Zoom Controls
-    // ===============================
-    onZoomIn(): void {
-        this.editor.zoom_in();
-    }
-
-    onZoomOut(): void {
-        this.editor.zoom_out();
-    }
-
-    onZoomReset(): void {
-        this.editor.zoom_reset();
-    }
-
-    // ===============================
-    // Export
-    // ===============================
     onExport(): void {
-        const data = this.editor.export();
-        console.log("DRAWFLOW EXPORT:", data);
+        this.cdraw.exportToFile("my-flow.json");
     }
 
-    // ===============================
-    // Events
-    // ===============================
+    onImport(): void {
+
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = ".json,application/json";
+
+        input.onchange = (e: any) => {
+
+            const file = e.target.files[0];
+            if (!file) return;
+
+            this.cdraw.importFromFile(file)
+                .then(() => console.log("Imported"))
+                .catch(err => console.error(err));
+        };
+
+        input.click();
+    }
+
+    
+    // =====================================================
+    // EVENTS
+    // =====================================================
+
     private registerEvents(): void {
 
-        this.editor.on("nodeSelected", (id: string) => {
+        const editor = this.cdraw.getEditor();
+
+        editor.on("nodeSelected", (id: string) => {
             this.selectedNodeId = id;
         });
 
-        this.editor.on("nodeUnselected", () => {
+        editor.on("nodeUnselected", () => {
             this.selectedNodeId = null;
         });
+    }
 
-        this.editor.on("nodeCreated", (id: string) => {
-            console.log("Node created:", id);
-        });
+    // =====================================================
+    // TEMPLATES
+    // =====================================================
 
-        this.editor.on("nodeRemoved", (id: string) => {
-            console.log("Node removed:", id);
-        });
+    //todo put this inside CDRAW
+    private createNodeHtml(): string {
 
-        this.editor.on("connectionCreated", (connection: any) => {
-            console.log("Connection created:", connection);
-        });
+        return `
+        <div style="padding:15px;text-align:center;">
+            <b>Node</b><br/>
+            <input type="text"
+                   df-name
+                   placeholder="Edit..."
+                   style="width:100%;" />
+        </div>
+        `;
+    }
 
-        this.editor.on("connectionRemoved", (connection: any) => {
-            console.log("Connection removed:", connection);
-        });
+    private createFiveBoxNode(): string {
 
-        this.editor.on("zoom", (zoom: number) => {
-            console.log("Zoom level:", zoom);
-        });
+        return `
+        <div class="fivebox-row">
+            <div class="box white"><input type="number" df-white /></div>
+            <div class="box blue"><input type="number" df-blue /></div>
+            <div class="box green"><input type="number" df-green /></div>
+            <div class="box yellow"><input type="number" df-yellow /></div>
+            <div class="box red"><input type="number" df-red /></div>
+        </div>
+        `;
+    }
+
+    private randomValue(): number {
+        return (Math.floor(Math.random() * 9) + 1) * 10;
+    }
+
+    // =====================================================
+    // DRAW CONTAINER+ INNER GUI
+    // =====================================================
+
+    private getHTMLControl(): string {
+
+        return `
+<div id="drawflowContainer"
+     style="width:calc(100% - 5px); height:100%; border:1px solid #ccc; position:relative;">
+
+    <div id="left-panel" class="side-panel">
+        <div id="panel-header"></div>
+        <div id="panel-divider-1"></div>
+        <div id="panel-body"></div>
+        <div id="panel-divider-2"></div>
+        <div id="panel-footer"></div>
+
+        <div id="panel-handle" class="panel-handle">
+            <span id="panel-handle-arrow">›</span>
+        </div>
+    </div>
+
+    <div id="anchor-top-left" class="anchor"></div>
+    <div id="anchor-top-right" class="anchor"></div>
+    <div id="anchor-bottom-left" class="anchor"></div>
+    <div id="anchor-bottom-right" class="anchor"></div>
+    <div id="anchor-center-left" class="anchor"></div>
+    <div id="anchor-center-right" class="anchor"></div>
+
+</div>
+`;
     }
 }
